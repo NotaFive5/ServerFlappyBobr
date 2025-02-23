@@ -1,50 +1,87 @@
 const express = require('express');
-const { Pool } = require('pg');
+const sqlite3 = require('sqlite3').verbose();
 const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Настройки подключения к PostgreSQL через Pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false
-    }
-});
-
-// Проверка подключения к базе данных
-pool.connect((err, client, release) => {
+// Подключение к SQLite базе данных
+const db = new sqlite3.Database('./scores.db', (err) => {
     if (err) {
-        return console.error('❌ Ошибка подключения к базе данных:', err.stack);
+        console.error('❌ Ошибка подключения к базе данных:', err.message);
+    } else {
+        console.log('✅ Подключение к базе данных SQLite успешно!');
     }
-    console.log('✅ Подключение к базе данных PostgreSQL успешно!');
-    release();
 });
 
 // Создание таблицы при запуске сервера
-pool.query(`
+db.run(`
     CREATE TABLE IF NOT EXISTS scores (
         user_id TEXT PRIMARY KEY,
         username TEXT DEFAULT 'Unknown',
         best_score INTEGER DEFAULT 0
     )
-`).then(() => console.log("🆕 Таблица 'scores' успешно создана."))
-  .catch(err => console.error("❌ Ошибка при создании таблицы:", err));
-
-// Эндпоинт для тестирования подключения
-app.get('/test', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT NOW()');
-        res.json({ message: 'Сервер работает!', time: result.rows[0] });
-    } catch (err) {
-        console.error('Ошибка выполнения запроса:', err);
-        res.status(500).json({ error: 'Database error' });
+`, (err) => {
+    if (err) {
+        console.error("❌ Ошибка при создании таблицы:", err.message);
+    } else {
+        console.log("🆕 Таблица 'scores' успешно создана.");
     }
 });
 
-// Запуск сервера
+// Получение лучшего результата пользователя
+app.get('/api/user_score/:telegramUserId', (req, res) => {
+    const userId = req.params.telegramUserId;
+    db.get('SELECT best_score FROM scores WHERE user_id = ?', [userId], (err, row) => {
+        if (err) {
+            console.error("❌ Ошибка запроса к базе данных:", err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ best_score: row ? row.best_score : 0 });
+    });
+});
+
+// Сохранение нового рекорда
+app.post('/api/score', (req, res) => {
+    const { user_id, username, score } = req.body;
+    if (!user_id || !username || typeof score === 'undefined') {
+        return res.status(400).json({ error: 'Missing user_id, username, or score' });
+    }
+
+    db.run(`
+        INSERT INTO scores (user_id, username, best_score)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE 
+        SET best_score = MAX(best_score, ?), username = ?
+    `, [user_id, username, score, score, username], (err) => {
+        if (err) {
+            console.error("❌ Ошибка при сохранении рекорда:", err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ success: true });
+    });
+});
+
+// Таблица лидеров (топ-10 игроков)
+app.get('/api/leaderboard', (req, res) => {
+    db.all('SELECT user_id, username, best_score FROM scores ORDER BY best_score DESC LIMIT 10', (err, rows) => {
+        if (err) {
+            console.error("❌ Ошибка при получении таблицы лидеров:", err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        const leaderboard = rows.map((row, index) => ({
+            position: index + 1,
+            user_id: row.user_id,
+            username: row.username,
+            score: row.best_score
+        }));
+
+        res.json(leaderboard);
+    });
+});
+
 app.listen(port, () => {
     console.log(`🚀 Сервер запущен на порту ${port}`);
 });

@@ -1,16 +1,12 @@
 {
-  "name": "telegram-score-server",
+  "name": "flappy-bobr-server",
   "version": "1.0.0",
-  "description": "Score server for Telegram WebApp game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "pg": "^8.11.0"
-  },
-  "engines": {
-    "node": ">=14.0.0"
+    "pg": "^8.10.0"
   }
 }

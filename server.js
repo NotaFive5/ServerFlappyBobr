@@ -29,7 +29,7 @@ db.run(`
     }
 });
 
-// Получение лучшего результата пользователя по имени
+// Получение лучшего результата пользователя по username
 app.get('/api/user_score/:username', (req, res) => {
     const username = req.params.username;
     db.get('SELECT best_score FROM scores WHERE username = ?', [username], (err, row) => {
@@ -41,7 +41,7 @@ app.get('/api/user_score/:username', (req, res) => {
     });
 });
 
-// Сохранение нового рекорда
+// Сохранение нового рекорда по username
 app.post('/api/score', (req, res) => {
     const { username, score } = req.body;
     if (!username || typeof score === 'undefined') {

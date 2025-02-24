@@ -1,14 +1,21 @@
-// server.js
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
 // Подключение к SQLite базе данных
-const db = new sqlite3.Database('./scores.db', (err) => {
+const dbPath = path.join(__dirname, 'scores.db');
+
+// Проверка существования базы данных, если нет — создаем
+if (!fs.existsSync(dbPath)) {
+    console.log('🆕 База данных не найдена. Создание новой базы данных...');
+    fs.openSync(dbPath, 'w');
+}
+
+const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('❌ Ошибка подключения к базе данных:', err.message);
     } else {
@@ -29,6 +36,9 @@ db.run(`
         console.log("🆕 Таблица 'scores' успешно создана.");
     }
 });
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Получение лучшего результата пользователя по username
 app.get('/api/user_score/:username', (req, res) => {
@@ -84,5 +94,3 @@ app.get('/api/leaderboard', (req, res) => {
 app.listen(port, () => {
     console.log(`🚀 Сервер запущен на порту ${port}`);
 });
-
-

@@ -1,7 +1,6 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-
-const app = express(); // <--- ВОТ ЗДЕСЬ СОЗДАЕМ 'app'
+const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(express.json());
@@ -30,7 +29,7 @@ db.run(`
     }
 });
 
-// Получение лучшего результата пользователя по username
+// Получение лучшего результата пользователя по имени
 app.get('/api/user_score/:username', (req, res) => {
     const username = req.params.username;
     db.get('SELECT best_score FROM scores WHERE username = ?', [username], (err, row) => {
@@ -42,7 +41,7 @@ app.get('/api/user_score/:username', (req, res) => {
     });
 });
 
-// Сохранение нового рекорда по username
+// Сохранение нового рекорда
 app.post('/api/score', (req, res) => {
     const { username, score } = req.body;
     if (!username || typeof score === 'undefined') {
@@ -81,7 +80,6 @@ app.get('/api/leaderboard', (req, res) => {
     });
 });
 
-// Запуск сервера
 app.listen(port, () => {
     console.log(`🚀 Сервер запущен на порту ${port}`);
 });

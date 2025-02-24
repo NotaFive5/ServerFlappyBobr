@@ -1,7 +1,7 @@
 {
     "name": "flappy-bobr-server",
     "version": "1.0.0",
-    "description": "Server for Flappy Bobr Game",
+    "description": "Server for Flappy Bobr Game with new_scores database",
     "main": "server.js",
     "scripts": {
         "start": "node server.js"

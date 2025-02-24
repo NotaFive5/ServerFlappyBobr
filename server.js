@@ -83,16 +83,15 @@ app.get('/api/leaderboard', (req, res) => {
 });
 
 // 📦 Маршрут для получения всех данных из таблицы scores
-app.get('/api/all_scores', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM scores');
-        res.json(result.rows);
-    } catch (err) {
-        console.error("Ошибка при получении всех данных из таблицы:", err);
-        res.status(500).json({ error: 'Database error' });
-    }
+app.get('/api/all_scores', (req, res) => {
+    db.all('SELECT * FROM scores', (err, rows) => {
+        if (err) {
+            console.error("❌ Ошибка при получении всех данных из таблицы:", err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
 });
-
 
 app.listen(port, () => {
     console.log(`🚀 Сервер запущен на порту ${port}`);

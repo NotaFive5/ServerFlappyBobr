@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const app = express();
@@ -83,3 +84,5 @@ app.get('/api/leaderboard', (req, res) => {
 app.listen(port, () => {
     console.log(`🚀 Сервер запущен на порту ${port}`);
 });
+
+

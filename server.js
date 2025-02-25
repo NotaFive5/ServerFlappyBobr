@@ -1,8 +1,14 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const { Low, JSONFile } = require('lowdb');
-const path = require('path');
+// Используем ES Module синтаксис вместо require
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import { Low, JSONFile } from 'lowdb';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Настройки пути для ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Инициализация базы данных
 const dbFile = path.join(__dirname, 'db.json');

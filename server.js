@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 5000;
 
-// ✅ Правильное название новой базы данных
+// Подключение к новой базе данных SQLite
 const dbPath = path.join(__dirname, 'board.db');
 
 // Проверка существования новой базы данных, если нет — создаем
@@ -43,10 +43,14 @@ app.use(express.urlencoded({ extended: true }));
 // Получение лучшего результата пользователя по username из новой базы данных
 app.get('/api/user_score/:username', (req, res) => {
     const username = req.params.username;
+    console.log(`Запрос на получение данных для пользователя: ${username}`);
     db.get('SELECT best_score FROM board WHERE username = ?', [username], (err, row) => {
         if (err) {
-            console.error("❌ Ошибка запроса к базе данных board:", err.message);
+            console.error("❌ Ошибка базы данных:", err.message);
             return res.status(500).json({ error: 'Database error' });
+        }
+        if (!row) {
+            console.warn(`Пользователь ${username} не найден в базе данных.`);
         }
         res.json({ best_score: row ? row.best_score : 0 });
     });
@@ -66,28 +70,11 @@ app.post('/api/score', (req, res) => {
         SET best_score = MAX(best_score, ?)
     `, [username, score, score], (err) => {
         if (err) {
-            console.error("❌ Ошибка при сохранении рекорда в базу данных board:", err.message);
+            console.error("❌ Ошибка при сохранении рекорда:", err.message);
             return res.status(500).json({ error: 'Database error' });
         }
+        console.log(`Рекорд пользователя ${username} успешно сохранен: ${score}`);
         res.json({ success: true });
-    });
-});
-
-// Таблица лидеров (топ-10 игроков) из новой базы данных
-app.get('/api/leaderboard', (req, res) => {
-    db.all('SELECT username, best_score FROM board ORDER BY best_score DESC LIMIT 10', (err, rows) => {
-        if (err) {
-            console.error("❌ Ошибка при получении таблицы лидеров из базы данных board:", err.message);
-            return res.status(500).json({ error: 'Database error' });
-        }
-
-        const leaderboard = rows.map((row, index) => ({
-            position: index + 1,
-            username: row.username,
-            score: row.best_score
-        }));
-
-        res.json(leaderboard);
     });
 });
 

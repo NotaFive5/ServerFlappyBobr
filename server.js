@@ -6,34 +6,34 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Подключение к новой базе данных SQLite
-const dbPath = path.join(__dirname, 'new_scores.db');
+// ✅ Правильное название новой базы данных
+const dbPath = path.join(__dirname, 'board.db');
 
 // Проверка существования новой базы данных, если нет — создаем
 if (!fs.existsSync(dbPath)) {
-    console.log('🆕 Новая база данных не найдена. Создание new_scores.db...');
+    console.log('🆕 Новая база данных не найдена. Создание board.db...');
     fs.openSync(dbPath, 'w');
 }
 
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
-        console.error('❌ Ошибка подключения к новой базе данных:', err.message);
+        console.error('❌ Ошибка подключения к базе данных board.db:', err.message);
     } else {
-        console.log('✅ Подключение к базе данных new_scores.db успешно!');
+        console.log('✅ Подключение к базе данных board.db успешно!');
     }
 });
 
 // Создание таблицы в новой базе данных при запуске сервера
 db.run(`
-    CREATE TABLE IF NOT EXISTS new_scores (
+    CREATE TABLE IF NOT EXISTS board (
         username TEXT PRIMARY KEY,
         best_score INTEGER DEFAULT 0
     )
 `, (err) => {
     if (err) {
-        console.error("❌ Ошибка при создании таблицы new_scores:", err.message);
+        console.error("❌ Ошибка при создании таблицы board:", err.message);
     } else {
-        console.log("🆕 Таблица 'new_scores' успешно создана.");
+        console.log("🆕 Таблица 'board' успешно создана.");
     }
 });
 
@@ -43,9 +43,9 @@ app.use(express.urlencoded({ extended: true }));
 // Получение лучшего результата пользователя по username из новой базы данных
 app.get('/api/user_score/:username', (req, res) => {
     const username = req.params.username;
-    db.get('SELECT best_score FROM new_scores WHERE username = ?', [username], (err, row) => {
+    db.get('SELECT best_score FROM board WHERE username = ?', [username], (err, row) => {
         if (err) {
-            console.error("❌ Ошибка запроса к новой базе данных:", err.message);
+            console.error("❌ Ошибка запроса к базе данных board:", err.message);
             return res.status(500).json({ error: 'Database error' });
         }
         res.json({ best_score: row ? row.best_score : 0 });
@@ -60,13 +60,13 @@ app.post('/api/score', (req, res) => {
     }
 
     db.run(`
-        INSERT INTO new_scores (username, best_score)
+        INSERT INTO board (username, best_score)
         VALUES (?, ?)
         ON CONFLICT(username) DO UPDATE 
         SET best_score = MAX(best_score, ?)
     `, [username, score, score], (err) => {
         if (err) {
-            console.error("❌ Ошибка при сохранении рекорда в новую базу данных:", err.message);
+            console.error("❌ Ошибка при сохранении рекорда в базу данных board:", err.message);
             return res.status(500).json({ error: 'Database error' });
         }
         res.json({ success: true });
@@ -75,9 +75,9 @@ app.post('/api/score', (req, res) => {
 
 // Таблица лидеров (топ-10 игроков) из новой базы данных
 app.get('/api/leaderboard', (req, res) => {
-    db.all('SELECT username, best_score FROM new_scores ORDER BY best_score DESC LIMIT 10', (err, rows) => {
+    db.all('SELECT username, best_score FROM board ORDER BY best_score DESC LIMIT 10', (err, rows) => {
         if (err) {
-            console.error("❌ Ошибка при получении таблицы лидеров из новой базы данных:", err.message);
+            console.error("❌ Ошибка при получении таблицы лидеров из базы данных board:", err.message);
             return res.status(500).json({ error: 'Database error' });
         }
 

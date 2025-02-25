@@ -1,1 +1,12 @@
+CREATE TABLE IF NOT EXISTS board (
+    username TEXT PRIMARY KEY,
+    best_score INTEGER DEFAULT 0
+);
+
+INSERT INTO board (username, best_score) VALUES 
+('SiniiiiTractor', 100),
+('PlayerOne', 50),
+('GamerX', 75);
+
+SELECT * FROM board;
 

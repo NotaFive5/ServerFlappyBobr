@@ -96,15 +96,31 @@ app.post('/api/score', async (req, res) => {
 });
 
 // 🚦 Получение глобального рейтинга (топ-10 игроков)
+// 🚦 Получение глобального рейтинга (топ-10 игроков)
 app.get('/api/leaderboard', async (req, res) => {
     await db.read();
 
+    const limit = parseInt(req.query.limit) || 10; // Чтение лимита из параметров запроса
+    console.log(`Запрос таблицы лидеров (лимит: ${limit})`);
+
     const leaderboard = db.data.scores
         .sort((a, b) => b.score - a.score)
-        .slice(0, 10);
+        .slice(0, limit)
+        .map((entry, index) => ({
+            position: index + 1,
+            username: entry.username,
+            score: entry.score
+        }));
 
+    if (leaderboard.length === 0) {
+        console.log("Таблица лидеров пуста.");
+        return res.json([]);
+    }
+
+    console.log("Отправка таблицы лидеров:", leaderboard);
     res.json(leaderboard);
 });
+
 
 // 🚀 Запуск сервера с обработкой ошибок
 app.listen(PORT, () => {

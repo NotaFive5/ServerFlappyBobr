@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// 🚦 **Получение лучшего счёта пользователя**
+// 🚦 Получение лучшего счёта пользователя
 app.get('/api/user_score/:username', async (req, res) => {
     const { username } = req.params;
     await db.read();
@@ -37,7 +37,7 @@ app.get('/api/user_score/:username', async (req, res) => {
     }
 });
 
-// 🚦 **Сохранение нового рекорда**
+// 🚦 Сохранение нового рекорда
 app.post('/api/score', async (req, res) => {
     const { username, score } = req.body;
 
@@ -63,8 +63,18 @@ app.post('/api/score', async (req, res) => {
     res.json({ success: true });
 });
 
-// 🚦 **Получение глобального рейтинга (топ-10 игроков)**
+// 🚦 Получение глобального рейтинга (топ-10 игроков)
 app.get('/api/leaderboard', async (req, res) => {
     await db.read();
 
-  
+    const leaderboard = db.data.scores
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10);
+
+    res.json(leaderboard);
+});
+
+// 🚀 Запуск сервера
+app.listen(PORT, () => {
+    console.log(`Сервер запущен на http://localhost:${PORT}`);
+});

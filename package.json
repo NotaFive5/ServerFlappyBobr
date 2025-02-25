@@ -1,18 +1,4 @@
-{
-    "name": "flappy-bobr-server",
-    "version": "1.0.0",
-    "description": "Server for Flappy Bobr Game with new_scores database",
-    "main": "server.js",
-    "scripts": {
-        "start": "node server.js"
-    },
-    "dependencies": {
-        "express": "^4.18.2",
-        "sqlite3": "^5.1.6"
-    },
-    "engines": {
-        "node": ">=14.0.0"
-    },
-    "author": "Your Name",
-    "license": "ISC"
+"scripts": {
+    "start": "node server.js"
 }
+

@@ -56,6 +56,17 @@ app.get('/api/user_score/:username', (req, res) => {
     });
 });
 
+// Проверка данных в базе данных
+app.get('/api/check_db', (req, res) => {
+    db.all('SELECT * FROM board', (err, rows) => {
+        if (err) {
+            console.error("❌ Ошибка при чтении данных из board.db:", err.message);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json({ data: rows });
+    });
+});
+
 // Сохранение нового рекорда по username в новой базе данных
 app.post('/api/score', (req, res) => {
     const { username, score } = req.body;

@@ -45,14 +45,25 @@ app.get('/api/user_score/:username', async (req, res) => {
 
 // 🚦 Сохранение нового рекорда
 app.post('/api/score', async (req, res) => {
-    const { username, score } = req.body;
+    const { username } = req.body;
+    const score = Number(req.body.score);
 
-    if (!username || !score) {
+    if (!username || score === undefined || score === null) {
         return res.status(400).json({ error: "Необходимо указать username и score" });
+    }
+
+    if (isNaN(score)) {
+        return res.status(400).json({ error: "Score должен быть числом" });
+    }
+
+    if (score <= 0) {
+        return res.status(400).json({ error: "Score должен быть положительным числом" });
     }
 
     await db.read();
     const existingUser = db.data.scores.find(user => user.username === username);
+
+    console.log(`Запрос на сохранение рекорда: username=${username}, score=${score}`);
 
     if (existingUser) {
         if (score > existingUser.score) {

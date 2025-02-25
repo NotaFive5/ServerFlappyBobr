@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS board (
 );
 
 INSERT INTO board (username, best_score) VALUES 
-('SiniiiiTractor', 100),
+('SiniiiiTractor', 1),
 ('PlayerOne', 50),
 ('GamerX', 75);
 

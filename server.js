@@ -1,4 +1,3 @@
-// Используем ES Module синтаксис вместо require
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -20,7 +19,7 @@ const db = new Low(adapter);
 // Загрузка данных из базы при старте
 async function initDB() {
     await db.read();
-    db.data ||= { scores: [] };
+    db.data ||= { scores: [], referrals: [] }; // Добавляем поле для рефералов
     await db.write();
 }
 initDB();
@@ -57,6 +56,42 @@ function validateSignature(req, res, next) {
     next();
 }
 
+// Генерация реферального кода
+function generateReferralCode(username) {
+    return crypto.createHash('sha256').update(username + Date.now()).digest('hex').slice(0, 8);
+}
+
+// Получение реферального кода пользователя
+async function getReferralCode(username) {
+    await db.read();
+    const user = db.data.scores.find(user => user.username === username);
+    if (user && user.referral_code) {
+        return user.referral_code;
+    }
+    return null;
+}
+
+// Регистрация нового пользователя с рефералом
+async function registerUser(username, score, referredBy = null) {
+    await db.read();
+    const referralCode = generateReferralCode(username);
+
+    // Добавляем пользователя в таблицу scores
+    db.data.scores.push({ username, score, referral_code: referralCode, invited_by: referredBy, invited_users: [] });
+    await db.write();
+
+    // Если есть реферал, обновляем его данные
+    if (referredBy) {
+        const referrer = db.data.scores.find(user => user.referral_code === referredBy);
+        if (referrer) {
+            referrer.invited_users.push(username);
+            await db.write();
+        }
+    }
+
+    return referralCode;
+}
+
 // 🚦 Получение лучшего счёта пользователя
 app.get('/api/user_score/:username', async (req, res) => {
     const { username } = req.params;
@@ -73,10 +108,7 @@ app.get('/api/user_score/:username', async (req, res) => {
 // 🚦 Сохранение нового рекорда
 app.post('/api/score', validateSignature, async (req, res) => {
     try {
-        console.log('Получен POST запрос на /api/score');
-        console.log('Тело запроса:', req.body);
-
-        const { username, score } = req.body;
+        const { username, score, referredBy } = req.body;
 
         if (!username || typeof score !== 'number' || score <= 0) {
             return res.status(400).json({ error: "Некорректные данные" });
@@ -89,12 +121,9 @@ app.post('/api/score', validateSignature, async (req, res) => {
             if (score > existingUser.score) {
                 existingUser.score = score;
                 await db.write();
-                console.log(`Обновлен рекорд для ${username}: ${score}`);
             }
         } else {
-            db.data.scores.push({ username, score });
-            await db.write();
-            console.log(`Добавлен новый игрок ${username} с результатом ${score}`);
+            await registerUser(username, score, referredBy);
         }
 
         res.json({ success: true });
@@ -105,45 +134,19 @@ app.post('/api/score', validateSignature, async (req, res) => {
     }
 });
 
-// 🚦 Очистка базы данных (обнуление)
-app.post('/api/reset_db', async (req, res) => {
-    try {
-        db.data = { scores: [] }; // Обнуляем данные
-        await db.write(); // Сохраняем пустую базу данных
-        console.log('База данных успешно обнулена.');
-        res.json({ success: true, message: 'База данных обнулена.' });
-    } catch (error) {
-        console.error('Ошибка при обнулении базы данных:', error);
-        res.status(500).json({ error: 'Ошибка при обнулении базы данных' });
+// 🚦 Получение реферальной ссылки
+app.get('/api/referral_link/:username', async (req, res) => {
+    const { username } = req.params;
+    const referralCode = await getReferralCode(username);
+
+    if (referralCode) {
+        res.json({ referral_link: `https://t.me/ваш_бот?start=${referralCode}` });
+    } else {
+        res.status(404).json({ error: "Пользователь не найден" });
     }
 });
 
-// 🚦 Получение глобального рейтинга (топ-10 игроков)
-app.get('/api/leaderboard', async (req, res) => {
-    await db.read();
-
-    const limit = parseInt(req.query.limit) || 10; // Чтение лимита из параметров запроса
-    console.log(`Запрос таблицы лидеров (лимит: ${limit})`);
-
-    const leaderboard = db.data.scores
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map((entry, index) => ({
-            position: index + 1,
-            username: entry.username,
-            score: entry.score
-        }));
-
-    if (leaderboard.length === 0) {
-        console.log("Таблица лидеров пуста.");
-        return res.json([]);
-    }
-
-    console.log("Отправка таблицы лидеров:", leaderboard);
-    res.json(leaderboard);
-});
-
-// 🚀 Запуск сервера с обработкой ошибок
+// 🚀 Запуск сервера
 app.listen(PORT, () => {
     console.log(`Сервер запущен на http://localhost:${PORT}`);
 }).on('error', (err) => {

@@ -206,6 +206,42 @@ app.get('/api/referral_link/:username', async (req, res) => {
     }
 });
 
+app.post('/api/process_referral', async (req, res) => {
+    try {
+        const { username, referral_code } = req.body;
+
+        if (!username || !referral_code) {
+            return res.status(400).json({ success: false, message: "Некорректные данные" });
+        }
+
+        await db.read();
+
+        // Находим пользователя, который создал реферальную ссылку
+        const referrer = db.data.scores.find(user => user.referralLink.includes(referral_code));
+
+        if (!referrer) {
+            return res.status(404).json({ success: false, message: "Реферальная ссылка не найдена" });
+        }
+
+        // Проверяем, не использовал ли пользователь уже реферальную ссылку
+        if (referrer.referrals && referrer.referrals.includes(username)) {
+            return res.json({ success: false, message: "Вы уже использовали реферальную ссылку." });
+        }
+
+        // Добавляем пользователя в список рефералов
+        if (!referrer.referrals) {
+            referrer.referrals = [];  // Инициализируем массив, если его нет
+        }
+        referrer.referrals.push(username);
+        await db.write();
+
+        res.json({ success: true, message: "Реферальная ссылка успешно применена!" });
+    } catch (error) {
+        console.error('Ошибка при обработке реферальной ссылки:', error);
+        res.status(500).json({ success: false, message: "Внутренняя ошибка сервера" });
+    }
+});
+
 // 🚀 Запуск сервера с обработкой ошибок
 app.listen(PORT, () => {
     console.log(`Сервер запущен на http://localhost:${PORT}`);

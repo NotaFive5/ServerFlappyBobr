@@ -1,4 +1,3 @@
-// Используем ES Module синтаксис вместо require
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -19,9 +18,15 @@ const db = new Low(adapter);
 
 // Загрузка данных из базы при старте
 async function initDB() {
-    await db.read();
-    db.data ||= { scores: [] };
-    await db.write();
+    await db.read(); // Чтение данных из файла
+
+    // Если файл пустой или не существует, инициализируем начальные данные
+    if (!db.data || !db.data.scores) {
+        db.data = { scores: [] };
+        await db.write(); // Сохранение начальных данных
+    }
+
+    console.log('База данных успешно загружена:', db.data);
 }
 initDB();
 
@@ -57,7 +62,7 @@ function validateSignature(req, res, next) {
     next();
 }
 
-//  Получение лучшего счёта пользователя
+// 🚦 Получение лучшего счёта пользователя
 app.get('/api/user_score/:username', async (req, res) => {
     const { username } = req.params;
     await db.read();
@@ -70,7 +75,7 @@ app.get('/api/user_score/:username', async (req, res) => {
     }
 });
 
-//  Сохранение нового рекорда
+// 🚦 Сохранение нового рекорда
 app.post('/api/score', validateSignature, async (req, res) => {
     try {
         console.log('Получен POST запрос на /api/score');
@@ -105,7 +110,7 @@ app.post('/api/score', validateSignature, async (req, res) => {
     }
 });
 
-//  Очистка базы данных (обнуление)
+// 🚦 Очистка базы данных (обнуление)
 app.post('/api/reset_db', async (req, res) => {
     try {
         db.data = { scores: [] }; // Обнуляем данные
@@ -118,7 +123,7 @@ app.post('/api/reset_db', async (req, res) => {
     }
 });
 
-//  Получение глобального рейтинга (топ-10 игроков)
+// 🚦 Получение глобального рейтинга (топ-10 игроков)
 app.get('/api/leaderboard', async (req, res) => {
     await db.read();
 
@@ -143,7 +148,7 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json(leaderboard);
 });
 
-//  Запуск сервера с обработкой ошибок
+// 🚀 Запуск сервера с обработкой ошибок
 app.listen(PORT, () => {
     console.log(`Сервер запущен на http://localhost:${PORT}`);
 }).on('error', (err) => {

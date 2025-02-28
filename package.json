@@ -12,7 +12,9 @@
         "body-parser": "^1.20.2",
         "cors": "^2.8.5",
         "lowdb": "^3.0.0",
-        "express-rate-limit": "^6.9.0",
-        "crypto": "^1.0.1"
+        "express-rate-limit": "^6.9.0"
+    },
+    "engines": {
+        "node": ">=16.0.0"
     }
 }

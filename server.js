@@ -29,7 +29,7 @@ initDB();
 
 // Генерация реферальной ссылки для Telegram-бота
 function generateReferralLink(username) {
-    const botUsername = "MyAwesomeBot"; // Замените на имя вашего бота
+    const botUsername = "BoberGames_bot"; // Замените на имя вашего бота
     const referralCode = crypto.randomBytes(8).toString('hex'); // Генерация уникального кода
     return `https://t.me/${botUsername}?start=${referralCode}`;
 }

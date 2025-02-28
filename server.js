@@ -37,13 +37,12 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Ограничение частоты запросов (Rate Limiting)
-const scoreLimiter = rateLimit({
+const limiter = rateLimit({
     windowMs: 60 * 1000, // 1 минута
     max: 10, // не более 10 запросов в минуту
     message: "Слишком много запросов. Попробуйте позже."
 });
-app.use('/api/score', scoreLimiter);
-app.use('/api/referral_link', scoreLimiter);
+app.use(limiter);
 
 // Проверка подписи HMAC
 function validateSignature(req, res, next) {
@@ -58,7 +57,7 @@ function validateSignature(req, res, next) {
     next();
 }
 
-// 🚦 Генерация и получение реферальной ссылки (отдельная таблица)
+// 🚦 Генерация и получение реферальной ссылки
 app.get('/api/referral_link/:username', async (req, res) => {
     const { username } = req.params;
     await db.read();
@@ -79,6 +78,19 @@ app.get('/api/referral_link/:username', async (req, res) => {
     }
 
     res.json({ referral_link: referral.referral_link });
+});
+
+// 🚦 Получение лучшего счёта пользователя
+app.get('/api/user_score/:username', async (req, res) => {
+    const { username } = req.params;
+    await db.read();
+
+    const userData = db.data.scores.find(user => user.username === username);
+    if (userData) {
+        res.json({ best_score: userData.score });
+    } else {
+        res.json({ best_score: 0 });
+    }
 });
 
 // 🚀 Запуск сервера

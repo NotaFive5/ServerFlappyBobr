@@ -1,214 +1,166 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import { Low, JSONFile } from 'lowdb';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import crypto from 'crypto';
-import rateLimit from 'express-rate-limit';
+import logging
+import requests
+from aiogram import Bot, Dispatcher, Router
+from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Command
+import os
+import asyncio
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-// Настройки пути для ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+# Настройки
+API_TOKEN = os.getenv('API_TOKEN')  # Токен Telegram-бота
+SERVER_URL = 'https://serverflappybobr-production.up.railway.app'  # Публичный URL сервера
 
-// Инициализация базы данных
-const dbFile = path.join(__dirname, 'db.json');
-const adapter = new JSONFile(dbFile);
-const db = new Low(adapter);
+if not API_TOKEN:
+    raise ValueError("Не найден API_TOKEN! Убедитесь, что переменная окружения настроена правильно.")
 
-// Загрузка данных из базы при старте
-async function initDB() {
-    await db.read();
-    if (!db.data || !db.data.scores) {
-        db.data = { scores: [] };
-        await db.write();
-    }
-    console.log('База данных успешно загружена:', db.data);
-}
-initDB();
+logging.basicConfig(level=logging.INFO)
 
-// Генерация реферальной ссылки для Telegram-бота
-function generateReferralLink(username) {
-    const botUsername = "MyAwesomeBot"; // Замените на имя вашего бота
-    const referralCode = crypto.randomBytes(8).toString('hex'); // Генерация уникального кода
-    return `https://t.me/${botUsername}?start=${referralCode}`;
-}
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
+router = Router()
 
-// Секретный ключ для HMAC
-const SECRET_KEY = process.env.SECRET_KEY || 'YOUR_SECRET_KEY';
+# 🚦 **Создание inline-клавиатуры**
+ikb_scoreResult = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Мои очки', callback_data="my_score")],
+    [InlineKeyboardButton(text='Топ 10', callback_data="leaderboard_10")],
+    [InlineKeyboardButton(text='Топ 20', callback_data="leaderboard_20")]
+])
 
-// Создание сервера
-const app = express();
-const PORT = process.env.PORT || 5000;
+# 🚦 **Создание клавиатуры команд рядом с полем ввода**
+commands_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Меню")]
+    ],
+    resize_keyboard=True,  # Делает клавиатуру компактной
+    one_time_keyboard=True,  # Клавиатура остается на экране после нажатия
+    input_field_placeholder="KURWA"  # Подсказка в поле ввода
+)
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+# 🚦 **Приветственное сообщение с кнопками (для /start)**
+@router.message(Command(commands=["start"]))
+async def send_start_message(message: Message):
+    welcome_text = (
+        "🐾 Добро пожаловать в захватывающий мир бобров! 🐾\n\n"
+        "🎮 Эта игра создана специально для проекта @BKRVCoin, "
+        "чтобы подарить вам увлекательные приключения и незабываемые эмоции!\n\n"
+        "💎 Играй, побеждай и зарабатывай! Впереди множество квестов, соревнований "
+        "и возможностей получить награды от @BKRVCoin.\n\n"
+        "🚀 Начни своё путешествие прямо сейчас! Нажимай кнопку ниже и окунись в удивительный мир бобров!"
+    )
+    
+    await message.reply(
+        welcome_text,
+        reply_markup=commands_keyboard  # Отображение клавиатуры команд
+    )
 
-// Ограничение частоты запросов (Rate Limiting)
-const scoreLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 минута
-    max: 10, // не более 10 запросов в минуту
-    message: "Слишком много запросов. Попробуйте позже."
-});
-app.use('/api/score', scoreLimiter);
+# 🚦 **Приветственное сообщение с inline-кнопками (для /hi)**
+@router.message(lambda message: message.text == "Меню")
+async def send_hi(message: Message):
+    await message.reply(
+        "Ты можешь посмотреть результаты игры здесь:",
+        reply_markup=ikb_scoreResult
+    )
 
-// Проверка подписи HMAC
-function validateSignature(req, res, next) {
-    const signature = req.headers['x-signature'];
-    const payload = JSON.stringify(req.body);
-    const expectedSignature = crypto.createHmac('sha256', SECRET_KEY).update(payload).digest('hex');
+# 🚦 **Команда /ref для получения реферальной ссылки**
+@router.message(Command(commands=["ref"]))
+async def send_referral_link(message: Message):
+    username = message.from_user.username
+    if not username:
+        await message.reply("У вас отсутствует username в Telegram. Установите его в настройках Telegram.")
+        return
 
-    if (signature !== expectedSignature) {
-        console.error('Ошибка: Неверная подпись запроса.');
-        return res.status(403).json({ error: "Неверная подпись" });
-    }
-    next();
-}
+    try:
+        # Запрос реферальной ссылки у сервера
+        response = requests.get(f"{SERVER_URL}/api/referral_link/{username}")
+        
+        # Если ссылка не найдена, создаём её
+        if response.status_code == 404:
+            create_response = requests.post(f"{SERVER_URL}/api/generate_referral", json={"username": username})
+            create_response.raise_for_status()
+            referral_link = create_response.json().get("referralLink")
+        else:
+            response.raise_for_status()
+            referral_link = response.json().get("referralLink")
+        
+        if referral_link:
+            await message.reply(f"Ваша реферальная ссылка: {referral_link}")
+        else:
+            await message.reply("Реферальная ссылка не найдена.")
+    except requests.RequestException as e:
+        logging.error(f"Ошибка при получении реферальной ссылки: {e}")
+        await message.reply("Не удалось получить реферальную ссылку. Попробуйте позже.")
 
-// 🚦 Получение лучшего счёта пользователя
-app.get('/api/user_score/:username', async (req, res) => {
-    const { username } = req.params;
-    await db.read();
+# 🚦 **Обработка нажатий на inline-кнопки**
+@router.callback_query()
+async def handle_callback_query(callback_query: CallbackQuery):
+    data = callback_query.data
 
-    const userData = db.data.scores.find(user => user.username === username);
-    if (userData) {
-        res.json({ best_score: userData.score });
-    } else {
-        res.json({ best_score: 0 });
-    }
-});
+    if data == "my_score":
+        await send_my_score(callback_query.message)
+    elif data == "leaderboard_10":
+        await send_leaderboard(callback_query.message, limit=10)
+    elif data == "leaderboard_20":
+        await send_leaderboard(callback_query.message, limit=20)
 
-// 🚦 Сохранение нового рекорда
-app.post('/api/score', validateSignature, async (req, res) => {
-    try {
-        console.log('Получен POST запрос на /api/score');
-        console.log('Тело запроса:', req.body);
+    await callback_query.answer()
 
-        const { username, score } = req.body;
+# 🚦 **Таблица лидеров с динамическим количеством участников**
+async def send_leaderboard(message: Message, limit: int = 10):
+    logging.info(f"Запрос таблицы лидеров с лимитом: {limit}")
 
-        if (!username || typeof score !== 'number' || score <= 0) {
-            return res.status(400).json({ error: "Некорректные данные" });
-        }
+    try:
+        response = requests.get(f"{SERVER_URL}/api/leaderboard?limit={limit}", timeout=10)
+        response.raise_for_status()
+        leaderboard = response.json()
+        logging.info(f"Получены данные: {leaderboard}")
+    except requests.RequestException as e:
+        logging.error(f"Ошибка при запросе таблицы лидеров: {e}")
+        await message.reply("Не удалось получить таблицу лидеров. Попробуйте позже.")
+        return
 
-        await db.read();
-        const existingUser = db.data.scores.find(user => user.username === username);
+    if not leaderboard:
+        await message.reply("Пока нет данных для таблицы лидеров.")
+        return
 
-        if (existingUser) {
-            if (score > existingUser.score) {
-                existingUser.score = score;
-                await db.write();
-                console.log(`Обновлен рекорд для ${username}: ${score}`);
-            }
-        } else {
-            db.data.scores.push({ username, score });
-            await db.write();
-            console.log(`Добавлен новый игрок ${username} с результатом ${score}`);
-        }
+    leaderboard_text = "🏆 <b>Таблица лидеров:</b>\n\n"
+    for index, entry in enumerate(leaderboard, start=1):
+        username = entry.get("username", "Неизвестный")
+        score = entry.get("score", 0)
 
-        res.json({ success: true });
+        if username != "Неизвестный":
+            username_link = f'<a href="https://t.me/{username}">@{username}</a>'
+        else:
+            username_link = "Неизвестный"
 
-    } catch (error) {
-        console.error('Ошибка при обработке запроса на /api/score:', error);
-        res.status(500).json({ error: "Внутренняя ошибка сервера" });
-    }
-});
+        leaderboard_text += f'{index}. {username_link}: {score}\n'
 
-// 🚦 Очистка базы данных (обнуление)
-app.post('/api/reset_db', async (req, res) => {
-    try {
-        db.data = { scores: [] }; // Обнуляем данные
-        await db.write(); // Сохраняем пустую базу данных
-        console.log('База данных успешно обнулена.');
-        res.json({ success: true, message: 'База данных обнулена.' });
-    } catch (error) {
-        console.error('Ошибка при обнулении базы данных:', error);
-        res.status(500).json({ error: 'Ошибка при обнулении базы данных' });
-    }
-});
+    await message.reply(leaderboard_text, parse_mode="HTML", disable_web_page_preview=True)
 
-// 🚦 Получение глобального рейтинга (топ-10 игроков)
-app.get('/api/leaderboard', async (req, res) => {
-    await db.read();
+# 🚦 **Вывод лучшего счёта конкретного пользователя**
+async def send_my_score(message: Message):
+    username = message.from_user.username
+    if not username:
+        await message.reply("У вас отсутствует username в Telegram. Установите его в настройках Telegram.")
+        return
 
-    const limit = parseInt(req.query.limit) || 10; // Чтение лимита из параметров запроса
-    console.log(`Запрос таблицы лидеров (лимит: ${limit})`);
+    logging.info(f"Запрос очков для пользователя: {username}")
 
-    const leaderboard = db.data.scores
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map((entry, index) => ({
-            position: index + 1,
-            username: entry.username,
-            score: entry.score
-        }));
+    try:
+        response = requests.get(f"{SERVER_URL}/api/user_score/{username}", timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        best_score = data.get("best_score", 0)
+        await message.reply(f"Ваш лучший результат: {best_score} очков.")
+    except requests.RequestException as e:
+        logging.error(f"Ошибка при запросе данных пользователя {username}: {e}")
+        await message.reply("Не удалось получить ваш лучший результат. Попробуйте позже.")
 
-    if (leaderboard.length === 0) {
-        console.log("Таблица лидеров пуста.");
-        return res.json([]);
-    }
+# 🚦 **Запуск бота**
+async def main():
+    dp.include_router(router)
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
 
-    console.log("Отправка таблицы лидеров:", leaderboard);
-    res.json(leaderboard);
-});
-
-// 🚦 Генерация реферальной ссылки
-app.post('/api/generate_referral', async (req, res) => {
-    try {
-        const { username } = req.body;
-
-        if (!username) {
-            return res.status(400).json({ error: "Некорректные данные" });
-        }
-
-        await db.read();
-
-        // Поиск пользователя в базе данных
-        let user = db.data.scores.find(user => user.username === username);
-
-        if (!user) {
-            // Если пользователь не найден, создаём новую запись
-            user = { username, score: 0, referralCode: null, referralLink: null };
-            db.data.scores.push(user);
-        }
-
-        // Генерация реферального кода и ссылки, если их ещё нет
-        if (!user.referralCode) {
-            user.referralCode = crypto.randomBytes(8).toString('hex'); // Генерация уникального кода
-            user.referralLink = generateReferralLink(username);
-            await db.write(); // Сохраняем изменения в базе данных
-            console.log(`Сгенерирована реферальная ссылка для ${username}: ${user.referralLink}`);
-        }
-
-        res.json({ referralLink: user.referralLink });
-    } catch (error) {
-        console.error('Ошибка при генерации реферальной ссылки:', error);
-        res.status(500).json({ error: "Внутренняя ошибка сервера" });
-    }
-});
-
-// 🚦 Получение реферальной ссылки
-app.get('/api/referral_link/:username', async (req, res) => {
-    try {
-        const { username } = req.params;
-
-        await db.read();
-        const user = db.data.scores.find(user => user.username === username);
-
-        if (user && user.referralLink) {
-            res.json({ referralLink: user.referralLink });
-        } else {
-            res.status(404).json({ error: "Реферальная ссылка не найдена" });
-        }
-    } catch (error) {
-        console.error('Ошибка при получении реферальной ссылки:', error);
-        res.status(500).json({ error: "Внутренняя ошибка сервера" });
-    }
-});
-
-// 🚀 Запуск сервера с обработкой ошибок
-app.listen(PORT, () => {
-    console.log(`Сервер запущен на http://localhost:${PORT}`);
-}).on('error', (err) => {
-    console.error('Ошибка при запуске сервера:', err);
-});
+if __name__ == '__main__':
+    asyncio.run(main())

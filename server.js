@@ -5,7 +5,6 @@ import { Low, JSONFile } from 'lowdb';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import rateLimit from 'express-rate-limit';
 
 // Настройки пути для ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -28,10 +27,10 @@ async function initDB() {
 initDB();
 
 // Генерация реферальной ссылки
-function generateReferralLink(userId) {
+function generateReferralLink(username) {
     const baseUrl = "https://yourwebsite.com/referral";
     const referralCode = crypto.randomBytes(8).toString('hex');
-    return `${baseUrl}?ref=${referralCode}&user=${userId}`;
+    return `${baseUrl}?ref=${referralCode}&user=${username}`;
 }
 
 // Создание сервера
@@ -52,18 +51,24 @@ app.post('/api/generate_referral', async (req, res) => {
         }
 
         await db.read();
-        const user = db.data.scores.find(user => user.username === username);
 
-        if (user) {
-            if (!user.referralLink) {
-                user.referralLink = generateReferralLink(username);
-                await db.write();
-                console.log(`Сгенерирована реферальная ссылка для ${username}: ${user.referralLink}`);
-            }
-            res.json({ referralLink: user.referralLink });
-        } else {
-            res.status(404).json({ error: "Пользователь не найден" });
+        // Поиск пользователя в базе данных
+        let user = db.data.scores.find(user => user.username === username);
+
+        if (!user) {
+            // Если пользователь не найден, создаём новую запись
+            user = { username, score: 0, referralLink: null };
+            db.data.scores.push(user);
         }
+
+        // Генерация реферальной ссылки, если её ещё нет
+        if (!user.referralLink) {
+            user.referralLink = generateReferralLink(username);
+            await db.write(); // Сохраняем изменения в базе данных
+            console.log(`Сгенерирована реферальная ссылка для ${username}: ${user.referralLink}`);
+        }
+
+        res.json({ referralLink: user.referralLink });
     } catch (error) {
         console.error('Ошибка при генерации реферальной ссылки:', error);
         res.status(500).json({ error: "Внутренняя ошибка сервера" });

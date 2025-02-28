@@ -242,6 +242,47 @@ app.post('/api/process_referral', async (req, res) => {
     }
 });
 
+app.get('/api/my_referrals/:username', async (req, res) => {
+    try {
+        const { username } = req.params;
+
+        await db.read();
+
+        // Находим пользователя в базе данных
+        const user = db.data.scores.find(user => user.username === username);
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Пользователь не найден" });
+        }
+
+        // Возвращаем количество рефералов
+        const referralCount = user.referrals ? user.referrals.length : 0;
+        res.json({ success: true, referralCount });
+    } catch (error) {
+        console.error('Ошибка при получении количества рефералов:', error);
+        res.status(500).json({ success: false, message: "Внутренняя ошибка сервера" });
+    }
+});
+
+app.get('/api/all_referrals', async (req, res) => {
+    try {
+        await db.read();
+
+        // Формируем список пользователей с количеством их рефералов
+        const referralList = db.data.scores
+            .filter(user => user.referrals && user.referrals.length > 0)
+            .map(user => ({
+                username: user.username,
+                referralCount: user.referrals.length
+            }));
+
+        res.json({ success: true, referralList });
+    } catch (error) {
+        console.error('Ошибка при получении общего списка рефералов:', error);
+        res.status(500).json({ success: false, message: "Внутренняя ошибка сервера" });
+    }
+});
+
 // 🚀 Запуск сервера с обработкой ошибок
 app.listen(PORT, () => {
     console.log(`Сервер запущен на http://localhost:${PORT}`);
